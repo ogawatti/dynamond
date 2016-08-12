@@ -1,8 +1,26 @@
 #!/usr/bin/env bash
 set -euo pipefail
 IFS=$'\n\t'
-set -vx
+#set -vx
 
+# Install Gem
 bundle install
 
 # Do any other automated setup that you need to do here
+
+# Java Install for DynamoDBLocal
+echo
+if [ ! -e `java -version` ]; then
+  echo "java: command not found. Please install it."
+  exit
+fi
+
+# DynamoDBLocal Setup
+echo
+DYNAMOND_WGET_URI="http://dynamodb-local.s3-website-us-west-2.amazonaws.com/dynamodb_local_latest.zip"
+if [ ! -e tmp/DynamoDBLocal/DynamoDBLocal.jar ]; then
+  echo "DynamoDBLocal.jar does not exist. Download it."
+  wget $DYNAMOND_WGET_URI -P tmp/DynamoDBLocal/
+  unzip tmp/DynamoDBLocal/dynamodb_local_latest.zip -d tmp/DynamoDBLocal/
+  rm tmp/DynamoDBLocal/dynamodb_local_latest.zip
+fi
