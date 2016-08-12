@@ -10,7 +10,7 @@ module Dynamond
     end
 
     def create_table
-      unless table = Dynamond.client.describe_table(table_name: @options[:table_name])
+      unless table = Dynamond.tables.include?(@options[:table_name])
         Dynamond.client.create_table(@options)
       end
     end

@@ -29,7 +29,8 @@ module Dynamond
   end
 
   # TODO : Base Class名にした方がいいかも
+  #  * ページネートされるかも...
   def self.tables
-    client.list_tables
+    client.list_tables.table_names
   end
 end
