@@ -8,4 +8,10 @@ module Dynamond
     #  * D : destroy
     #  * - : save!, exists?, none, new_record?, persisted?
   end
+
+  class WattiTest < Dynamond::Base
+    def initialize
+      binding.pry
+    end
+  end
 end
