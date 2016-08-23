@@ -22,6 +22,14 @@ module Dynamond
     @@client ||= Aws::DynamoDB::Client.new(endpoint: @@endpoint, region: @@region)
   end
 
+  def self.endpoint
+    @@endpoint
+  end
+
+  def self.region
+    @@region
+  end
+
   def self.migrate
     @@migrations.each do |migration|
       migration.create_table

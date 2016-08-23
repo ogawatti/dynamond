@@ -1,2 +1,0 @@
-#!/bin/bash
-java -Djava.library.path=./tmp/DynamoDBLocal/DynamoDBLocal_lib -jar tmp/DynamoDBLocal/DynamoDBLocal.jar -inMemory db -cors \* -port 9000 -sharedDb

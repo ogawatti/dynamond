@@ -24,3 +24,5 @@ if [ ! -e tmp/DynamoDBLocal/DynamoDBLocal.jar ]; then
   unzip tmp/DynamoDBLocal/dynamodb_local_latest.zip -d tmp/DynamoDBLocal/
   rm tmp/DynamoDBLocal/dynamodb_local_latest.zip
 fi
+
+java -Djava.library.path=./tmp/DynamoDBLocal/DynamoDBLocal_lib -jar tmp/DynamoDBLocal/DynamoDBLocal.jar -inMemory db -cors \* -port 9000 -sharedDb
