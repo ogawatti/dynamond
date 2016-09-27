@@ -22,20 +22,109 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+### Setup
 
-## Development
+```
+$ export DYNAMOND_ENV="development"
+$ vi dynamond.yml
+```
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+### dynamodb.yml
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and tags, and push the `.gem` file to [rubygems.org](https://rubygems.org).
+```dynamodb.yml
+default: &default
+  endpoint: 'http://localhost:9000'
+  region:   'ap-northeast-1'
+  tables:
+    - table_name: "meta"
+      attribute_definitions:
+        - attribute_name: 'uuid'
+          attribute_type: 'S'
+        - attribute_name: 'user_id'
+          attribute_type: 'S'
+        - attribute_name: 'message'
+          attribute_type: 'S'
+      key_schema:
+        - attribute_name: 'uuid'
+          key_type:       'HASH'
+        - attribute_name: 'user_id'
+          key_type:       'RANGE'
+      global_secondary_indexes:
+        - index_name: 'uuid'
+          key_schema:
+            - attribute_name: 'user_id'
+              key_type:       'HASH'
+            - attribute_name: 'uuid'
+              key_type:       'RANGE'
+          projection:
+            projection_type: 'ALL'
+          provisioned_throughput:
+            read_capacity_units: 5
+            write_capacity_units: 5
+      provisioned_throughput:
+        read_capacity_units: 5
+        write_capacity_units: 5
 
-## Contributing
+development:
+  <<: *default
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/dynamond. This project is intended to be a safe, welcoming space for collaboration, and contributors are expected to adhere to the [Contributor Covenant](http://contributor-covenant.org) code of conduct.
+test:
+  <<: *default
+
+production:
+  <<: *default
+```
+
+### Example
+
+```
+### Configuration
+require 'aws-sdk'
+require 'dynamond'
+
+Dynamond.configuration("dynamodb.yml")
+Dynamond.migrate
+Dynamond.tables  #=> ["meta"]
+
+class Meta < Dynamond::Base; end
 
 
-## License
+### Create
+meta = Meta.create!({ uuid: "hoge", user_id: "1" })
+meta          #=> #<Meta:0x007fb3d30e1c10 @uuid="hoge", @user_id="1", @message=nil>
+meta.uuid     #=> "hoge"
+meta.user_id  #=> "1"
+meta.message  #=> nil
 
-The gem is available as open source under the terms of the [MIT License](http://opensource.org/licenses/MIT).
+meta = Meta.new({ uuid: "fuga", user_id: "1" })
+meta.message = "fugafuga"
+meta.save!
 
+
+### Read
+metas = Meta.all
+Meta.find("hoge")         # Range Key省略
+Meta.find(["hoge", "1"])  # Meta.find([HASH_KEY, RANGE_KEY])
+Meta.all
+Meta.first
+Meta.last
+Meta.where(uuid: "hoge")
+Meta.where('uuid = "hoge"')
+Meta.where("uuid = ?", "hoge")
+Meta.where(uuid: "hoge", user_id: "1")
+Meta.where('uuid = "fuga" AND user_id = "1"') 
+Meta.where(["uuid = ? and user_id = ?", "hoge", "1"])
+
+
+### Update
+meta = Meta.create!({ uuid: "piyo", user_id: "2" })
+meta.message = "piyopiyo"
+meta.save!
+meta.update_attributes(message: "piyopiyopiyo")
+
+
+### Delete
+meta = Meta.find(["hoge", "1"])  #=> #<Meta:0x007fbb542a7800 @message=nil, @user_id="1", @uuid="hoge">
+meta.destroy                     #=> #<Meta:0x007fbb542a7800 @message=nil, @user_id="1", @uuid="hoge">
+meta = Meta.find(["hoge", "1"])  #=> nil
+```
