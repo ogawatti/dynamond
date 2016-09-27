@@ -341,28 +341,5 @@ module Dynamond
       value = string.split("=").last.strip.delete('"').delete("'")
       { key => value }
     end
-
-=begin
-    def self.build(args=nil)
-      self.new(args)
-    end
-
-    def self.update_attributes!
-    end
-
-    # Meta.exists?                 #=> テーブルに1件でもデータは存在するか確認
-    # Meta.exists?(:foo => "bar")  #=> fooがbarなデータが存在するか確認
-    def exists?
-    end
-
-    def none
-    end
-
-    def new_record?
-    end
-
-    def persisted?
-    end
-=end
   end
 end
