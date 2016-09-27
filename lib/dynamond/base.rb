@@ -3,26 +3,18 @@ require 'active_support/core_ext/string/inflections'
 module Dynamond
   ## Reference : http://railsdoc.com/model
   class Base
-    # Version 0.0.1 対応メソッド
-    # * CRUD
-    #  * C : create!
-    #  * R : all, first, last, find, where
-    #  * U : update_attribute!, update_attributes!
-    #  * D : destroy
-    #  * - : save!, exists?, none, new_record?, persisted?
-
-    # TODO : Baseが呼ばれた時点で初期化したい
-    @@pertition_key = nil
-    @@sort_key      = nil
-
     def initialize(options={})
       initialize_attributes
       set_attributes(options)
     end
 
-    def self.create!(item={})
-      table.put_item(item: item)
-      self.new(item)
+    #  [ActiveRecord]
+    #    Meta.create!({ uuid: "hoge", user_id: "1" })
+    #    Meta.create!([{ uuid: "hoge", user_id: "1" }, { uuid: "fuga", user_id: "2"})
+    #  TODO : 複数指定
+    def self.create!(options={})
+      table.put_item(item: options)
+      self.new(options)
     end
 
     # DynamoDB は Keyが二つ (Hash, Range)
@@ -35,12 +27,17 @@ module Dynamond
     #  TODO : 複数指定
     def self.find(*args)
       if args.size == 1 && args.first.instance_of?(Array)
-        # TODO : whereに書き直したい
-        self.get_item(args.first.first, args.first.last)
+        params = {
+          key: {
+            @@pertition_key => args.first.first,
+            @@sort_key      => args.first.last
+          }
+        }
+        item = table.get_item(params).item
+        item ? self.new(item) : nil
       elsif args.size == 1
         ## Hash Keyを省略したものとみなす
-        params = { hash_key => args.first }
-        self.query(params)
+        self.query(hash_key => args.first)
       else
         raise ArgumentError
       end
@@ -52,7 +49,7 @@ module Dynamond
     #    Meta.where(["uuid ? and user_id ?", "hoge", "1"])
     #    Meta.where("message = ?", "fugafuga")
     #    Meta.where("message not ?", "fugafuga")
-    # TODO : 複数条件等
+    # TODO : 複数条件, not等
     def self.where(*args)
       if args.size == 1
         conditions = args.first
@@ -61,7 +58,6 @@ module Dynamond
       end
 
       params = {}
-
       case conditions
       when Hash
         # Range属性だけではkey条件指定はできない
@@ -82,24 +78,56 @@ module Dynamond
       query(params)
     end
 
-    # TODO : Privateへ
-    def self.generate_query_options_by_string(string)
-      if string.include?("and") || string.include?("AND")
-        string.split(/and|AND/).inject({}) do |hash, conditional_string|
-          hash.merge!(generate_query_options_by_conditional_string(conditional_string))
-        end
-      # elsif string.include?("or") || string.include?("OR")
-      #   # TODO
-      else
-        generate_query_options_by_conditional_string(string)
+    #  [ActiveRecord]
+    #     Meta.first.update_attributes(message: "hogehogehoge")
+    def update_attributes(options={})
+      key = {
+          pertition_key => self.send(pertition_key),
+          sort_key =>      self.send(sort_key)
+      }
+      attribute_updates = options.inject({}) do |hash, (k,v)|
+        hash[k] = { value: v, action: "PUT" }
+        hash
       end
+      table.update_item(key: key, attribute_updates: attribute_updates)
+
+      # 更新に成功した場合にselfを更新する
+      options.each do |k, v|
+        method_name = k.to_s + "="
+        self.send(method_name, v)
+      end
+      self
     end
 
-    # TODO : Privateへ
-    def self.generate_query_options_by_conditional_string(string)
-      key   = string.split("=").first.strip
-      value = string.split("=").last.strip.delete('"').delete("'")
-      { key => value }
+    #  [ActiveRecord]
+    #    Meta.first.destroy
+    #    Meta.destroy([1, 2])
+    # TODO : 引数がある場合 (モデル.destroy([引数 or 配列]))
+    def destroy
+      params = {
+        key: {
+          pertition_key => self.send(pertition_key),
+          sort_key =>      self.send(sort_key)
+        }
+      }
+      table.delete_item(params)
+      self
+    end
+
+    def save!
+      key = {}
+      attribute_updates = {}
+      instance_variables.each do |instance_variable_name|
+        key_name = key_name(instance_variable_name)
+        if self.primary_key.include?(key_name)
+          key[key_name] = get_attribute(key_name)
+        else
+          attribute_updates[key_name] = { value: get_attribute(key_name), action: "PUT" }
+        end
+      end
+
+      table.update_item(key: key, attribute_updates: attribute_updates)
+      self
     end
 
     def self.first
@@ -160,24 +188,6 @@ module Dynamond
 
     def table
       self.class.table
-    end
-
-    # * create : keyにヒットするitemがなければADDされる
-    # * update : keyにヒットするitemがあればPUTされる
-    def save!
-      key = {}
-      attribute_updates = {}
-      instance_variables.each do |instance_variable_name|
-        key_name = key_name(instance_variable_name)
-        if self.primary_key.include?(key_name)
-          key[key_name] = get_attribute(key_name)
-        else
-          attribute_updates[key_name] = { value: get_attribute(key_name), action: "PUT" }
-        end
-      end
-
-      table.update_item(key: key, attribute_updates: attribute_updates)
-      self
     end
 
     private
@@ -315,22 +325,33 @@ module Dynamond
       }
     end
 
+    def self.generate_query_options_by_string(string)
+      if string.include?("and") || string.include?("AND")
+        string.split(/and|AND/).inject({}) do |hash, conditional_string|
+          hash.merge!(generate_query_options_by_conditional_string(conditional_string))
+        end
+      # TODO : elsif string.include?("or") || string.include?("OR")
+      else
+        generate_query_options_by_conditional_string(string)
+      end
+    end
+
+    def self.generate_query_options_by_conditional_string(string)
+      key   = string.split("=").first.strip
+      value = string.split("=").last.strip.delete('"').delete("'")
+      { key => value }
+    end
+
 =begin
     def self.build(args=nil)
       self.new(args)
     end
 
-    def self.where(args)
-    end
-
     def self.update_attributes!
     end
 
-    def destroy
-    end
-
-    # Hoge.exists?                 #=> テーブルに1件でもデータは存在するか確認
-    # Hoge.exists?(:foo => "bar")  #=> fooがbarなデータが存在するか確認
+    # Meta.exists?                 #=> テーブルに1件でもデータは存在するか確認
+    # Meta.exists?(:foo => "bar")  #=> fooがbarなデータが存在するか確認
     def exists?
     end
 
