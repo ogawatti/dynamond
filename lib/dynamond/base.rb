@@ -37,7 +37,7 @@ module Dynamond
         item ? self.new(item) : nil
       elsif args.size == 1
         ## Hash Keyを省略したものとみなす
-        self.query(hash_key => args.first)
+        self.query(hash_key => args.first).first
       else
         raise ArgumentError
       end
@@ -257,7 +257,7 @@ module Dynamond
 
     def setter_method?(key, args)
       key.to_s =~ /(.*)=\z/
-      instance_variables.include?(instance_variable_name($1)) && args.size == 1
+      key.to_s.include?("=") && args.size == 1
     end
 
     def set_attribute(key, value)
@@ -283,7 +283,9 @@ module Dynamond
     end
 
     def self.query(options={})
-      raise ArgumentError.new("Include invalid parameter.") unless validate_query_params(options)
+      unless validate_query_params(options)
+        raise ArgumentError.new("Include invalid parameter. Pertition key is required.")
+      end
       params = generate_query_params(options)
       items = table.query(params).items
       items.inject([]) do |array, item|

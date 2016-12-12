@@ -42,8 +42,6 @@ default: &default
           attribute_type: 'S'
         - attribute_name: 'user_id'
           attribute_type: 'S'
-        - attribute_name: 'message'
-          attribute_type: 'S'
       key_schema:
         - attribute_name: 'uuid'
           key_type:       'HASH'
@@ -79,7 +77,6 @@ production:
 
 ```
 ### Configuration
-require 'aws-sdk'
 require 'dynamond'
 
 Dynamond.configuration("dynamodb.yml")
@@ -114,11 +111,14 @@ Meta.where("uuid = ?", "hoge")
 Meta.where(uuid: "hoge", user_id: "1")
 Meta.where('uuid = "fuga" AND user_id = "1"') 
 Meta.where(["uuid = ? and user_id = ?", "hoge", "1"])
+Meta.where(message: "fugafuga")  #=> Include invalid parameter. Pertition key is required. (ArgumentError)
 
 
 ### Update
 meta = Meta.create!({ uuid: "piyo", user_id: "2" })
+meta.message               #=> NoMethodError: undefined method `message'
 meta.message = "piyopiyo"
+meta.message               #=> "piyopiyo"
 meta.save!
 meta.update_attributes(message: "piyopiyopiyo")
 
